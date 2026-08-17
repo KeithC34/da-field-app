@@ -6,7 +6,9 @@ import '../../../data/sync/sync_coordinator.dart';
 import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.noticeMessage});
+
+  final String? noticeMessage;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -20,6 +22,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.noticeMessage != null &&
+        widget.noticeMessage!.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _showError(widget.noticeMessage!);
+      });
+    }
+  }
 
   @override
   void dispose() {

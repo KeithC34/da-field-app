@@ -11,6 +11,7 @@ class DioClient {
   }
 
   static const _logName = 'DioClient';
+  static const _requestTokenKey = 'request_access_token';
 
   final SecureSessionStorage _sessionStorage;
   final Dio _dio;
@@ -31,9 +32,11 @@ class DioClient {
         onRequest: (options, handler) async {
           try {
             final token = await _sessionStorage.readAccessToken();
+            options.extra.remove(_requestTokenKey);
 
             if (token != null && token.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $token';
+              options.extra[_requestTokenKey] = token;
             } else {
               options.headers.remove('Authorization');
             }
@@ -49,7 +52,37 @@ class DioClient {
 
           handler.next(options);
         },
+        onError: (error, handler) async {
+          if (error.response?.statusCode == 401) {
+            await _clearExpiredTokenIfRequestStillOwnsSession(error);
+          }
+
+          handler.next(error);
+        },
       ),
     );
+  }
+
+  Future<void> _clearExpiredTokenIfRequestStillOwnsSession(
+    DioException error,
+  ) async {
+    final tokenUsedByRequest = error.requestOptions.extra[_requestTokenKey];
+    if (tokenUsedByRequest is! String || tokenUsedByRequest.isEmpty) {
+      return;
+    }
+
+    try {
+      final currentToken = await _sessionStorage.readAccessToken();
+      if (currentToken == tokenUsedByRequest) {
+        await _sessionStorage.clearAccessToken();
+      }
+    } catch (clearError, stackTrace) {
+      developer.log(
+        'Unable to clear the expired access token after a 401 response.',
+        name: _logName,
+        error: clearError,
+        stackTrace: stackTrace,
+      );
+    }
   }
 }

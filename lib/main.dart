@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/api_config.dart';
 import 'core/network/dio_client.dart';
+import 'core/notifications/notification_alert_service.dart';
 import 'core/security/secure_session_storage.dart';
 import 'core/theme/app_theme.dart';
 import 'data/local/database/app_database.dart';
@@ -28,6 +29,8 @@ Future<void> main() async {
   final preferences = await SharedPreferences.getInstance();
   final secureSessionStorage = SecureSessionStorage();
   await secureSessionStorage.initialize(preferences);
+  final notificationAlertService = LocalNotificationAlertService(preferences);
+  await notificationAlertService.initialize();
   final database = AppDatabase();
   final dioClient = DioClient(secureSessionStorage);
   final authRepository = AuthRepository(
@@ -65,21 +68,27 @@ Future<void> main() async {
     offlineRecordRepository,
   );
   final connectivity = Connectivity();
-  final notificationRepository = NotificationRepository(database, dioClient.dio);
+  final notificationRepository = NotificationRepository(
+    database,
+    dioClient.dio,
+  );
   final syncProcessor = SyncProcessor(database, dioClient.dio, connectivity);
   final syncCoordinator = SyncCoordinator(
     syncProcessor,
     connectivity,
-    hasAuthenticatedSession: () =>
-        secureSessionStorage.hasAccessToken,
+    hasAuthenticatedSession: () => secureSessionStorage.hasAccessToken,
   )..start();
 
   runApp(
     MultiProvider(
       providers: [
         Provider<SharedPreferences>.value(value: preferences),
+        Provider<SecureSessionStorage>.value(value: secureSessionStorage),
         Provider<AppDatabase>.value(value: database),
         Provider<DioClient>.value(value: dioClient),
+        Provider<NotificationAlertService>.value(
+          value: notificationAlertService,
+        ),
         Provider<AuthRepository>.value(value: authRepository),
         Provider<FarmerRepository>.value(value: farmerRepository),
         Provider<DiseaseReportRepository>.value(value: diseaseReportRepository),
@@ -87,14 +96,14 @@ Future<void> main() async {
         Provider<PigRepository>.value(value: pigRepository),
         Provider<DispersalRepository>.value(value: dispersalRepository),
         Provider<OfflineRecordRepository>.value(value: offlineRecordRepository),
-        Provider<FieldOperationsRepository>.value(value: fieldOperationsRepository),
+        Provider<FieldOperationsRepository>.value(
+          value: fieldOperationsRepository,
+        ),
         Provider<NotificationRepository>.value(value: notificationRepository),
         Provider<SyncProcessor>.value(value: syncProcessor),
         Provider<SyncCoordinator>.value(value: syncCoordinator),
       ],
-      child: MyApp(
-        initiallyAuthenticated: secureSessionStorage.hasAccessToken,
-      ),
+      child: MyApp(initiallyAuthenticated: secureSessionStorage.hasAccessToken),
     ),
   );
 }
